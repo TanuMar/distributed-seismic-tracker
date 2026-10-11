@@ -6,10 +6,10 @@ Este proyecto implementa un sistema distribuido basado en eventos que recopila i
 
 # System Startup - ENGLISH
 Only first time:
-    - $python3 -m venv venv
-    - $source venv/bin/activate
-    - $pip install requests paho-mqtt web3
-    - $pip install reverse_geocoder pycountry-convert
+- $python3 -m venv venv
+- $source venv/bin/activate
+- $pip install requests paho-mqtt web3
+- $pip install reverse_geocoder pycountry-convert
 
 ## Node Red
 - Start Eclipse mosquito
@@ -49,10 +49,10 @@ Only first time:
 
 # Arranque de sistema - ESPAÑOL
 Solo primera vez:
-    - $python3 -m venv venv
-    - $source venv/bin/activate
-    - $pip install requests paho-mqtt web3
-    - $pip install reverse_geocoder pycountry-convert
+- $python3 -m venv venv
+- $source venv/bin/activate
+- $pip install requests paho-mqtt web3
+- $pip install reverse_geocoder pycountry-convert
 
 ## Node Red
 - Arrancar Eclipse mosquito

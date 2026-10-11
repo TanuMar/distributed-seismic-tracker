@@ -1,0 +1,1568 @@
+[
+    {
+        "id": "01dd48a4ed26ad4c",
+        "type": "subflow",
+        "name": "Procesado Continente",
+        "info": "",
+        "category": "",
+        "in": [
+            {
+                "x": 60,
+                "y": 140,
+                "wires": [
+                    {
+                        "id": "49acc6b4d2801d79"
+                    }
+                ]
+            }
+        ],
+        "out": [
+            {
+                "x": 540,
+                "y": 100,
+                "wires": [
+                    {
+                        "id": "49acc6b4d2801d79",
+                        "port": 0
+                    }
+                ]
+            },
+            {
+                "x": 540,
+                "y": 160,
+                "wires": [
+                    {
+                        "id": "49acc6b4d2801d79",
+                        "port": 1
+                    }
+                ]
+            },
+            {
+                "x": 540,
+                "y": 240,
+                "wires": [
+                    {
+                        "id": "49acc6b4d2801d79",
+                        "port": 2
+                    }
+                ]
+            }
+        ],
+        "env": [],
+        "meta": {},
+        "color": "#DDAA99"
+    },
+    {
+        "id": "49acc6b4d2801d79",
+        "type": "function",
+        "z": "01dd48a4ed26ad4c",
+        "name": "Procesar Magnitud y Tiempo",
+        "func": "var d = msg.payload;\n\n// Verificar que sea un payload de seísmo válido\nif (d && d.coordenadas) {\n    var lat = d.coordenadas[1];\n    var lon = d.coordenadas[0];\n    var mag = d.magnitud;\n    var lugar = d.lugar;\n    var tiempo = d.tiempo;\n    \n    // Salida para indicador visual (Gauge)\n    var msgGauge = { payload: mag };\n    \n    // Salida para texto lugar\n    var msgLugar = { payload: lugar };\n\n    // Salida para texto tiempo\n    var msgTiempo = { payload: tiempo };\n\n    return [msgLugar, msgTiempo, msgGauge];\n}\nreturn null;",
+        "outputs": 3,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 260,
+        "y": 140,
+        "wires": [
+            [],
+            [],
+            []
+        ]
+    },
+    {
+        "id": "44cb8fdafae3021b",
+        "type": "tab",
+        "label": "Monitoreo Sísmico USGS",
+        "disabled": false,
+        "info": "Flujo para visualizar terremotos recibidos desde el broker MQTT"
+    },
+    {
+        "id": "dd59e26c8dbf47dd",
+        "type": "mqtt in",
+        "z": "44cb8fdafae3021b",
+        "name": "Entrada MQTT Terremotos General",
+        "topic": "terremotos/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "broker_mosquitto_local",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 180,
+        "y": 40,
+        "wires": [
+            [
+                "a6ef69f396d7b2ef"
+            ]
+        ]
+    },
+    {
+        "id": "a6ef69f396d7b2ef",
+        "type": "function",
+        "z": "44cb8fdafae3021b",
+        "name": "Procesar Coordenadas y Mas Fuerte",
+        "func": "const MAX_MARKERS = 200;\n\nvar d = msg.payload;\n\n// Verificar que sea un payload de seísmo válido\nif (d && d.coordenadas) {\n    var lat = d.coordenadas[1];\n    var lon = d.coordenadas[0];\n    var mag = d.magnitud;\n    var lugar = d.lugar;\n    var timestamp = d.tiempo;\n    \n    // Salida estructurada para mapas (worldmap o ui)\n    var msgMap = {\n        payload: {\n            name: lugar,\n            lat: lat,\n            lon: lon,\n            icon: \"globe\",\n            iconColor: mag >= 5.0 ? \"red\" : (mag >= 3.0 ? \"orange\" : \"green\"),\n            layer: \"Terremotos\",\n            Magnitud: mag,\n            Timestamp: timestamp\n        }\n    };\n\n    // Eliminar puntos mapa viejos\n    let markers = flow.get(\"markers\") || [];\n\n    // Evitar duplicados por id\n    if (!markers.some(m => m.id === d.id)) {\n        markers.push(d);\n    }\n\n    if (markers.length > MAX_MARKERS) {\n        let oldest = markers.shift();\n        node.send([null, null, null,\n            { payload: { name: oldest.lugar, deleted: true } }\n        ]);\n    }\n    flow.set(\"markers\", markers);\n\n    // Buscar Máximo terremoto de los guardados\n    let maxTerremoto = markers.reduce((max, current) => current.magnitud > max.magnitud ? current : max);\n    var msgTextLugar = { payload: maxTerremoto.lugar };\n    var msgTextTiempo = { payload: maxTerremoto.tiempo };\n    var msgMag = { payload: maxTerremoto.magnitud };\n\n    // Tabla\n    var msgTable = {\n        payload: markers.map(t => ({\n        Lugar: t.lugar,\n        Magnitud: t.magnitud,\n        Timestamp: t.tiempo,\n        Latitud: t.coordenadas[1],\n        Longitud: t.coordenadas[0]\n        }))\n    };\n\n    return [msgTextLugar, msgTextTiempo, msgMag, msgMap,msgTable];\n}\nreturn null;",
+        "outputs": 5,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 530,
+        "y": 40,
+        "wires": [
+            [
+                "f16b04be2a5c1bd8"
+            ],
+            [
+                "a05ca793358df66a"
+            ],
+            [
+                "533e6de43fe9a823"
+            ],
+            [
+                "85dc88da3b46fa75"
+            ],
+            [
+                "c152c3954f8c17a8"
+            ]
+        ]
+    },
+    {
+        "id": "eb9a1fa2fe3a96bd",
+        "type": "function",
+        "z": "44cb8fdafae3021b",
+        "name": "Crear Notificacion alarma",
+        "func": "var d = msg.payload;\nmsg.payload = \"¡ALERTA SÍSMICA CRÍTICA!\\n Lugar: \" + d.lugar + \"\\n Magnitud: \" + d.magnitud;\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 490,
+        "y": 200,
+        "wires": [
+            [
+                "e8e1db857917c5cf",
+                "49b79982a2c7b9b0"
+            ]
+        ]
+    },
+    {
+        "id": "e8e1db857917c5cf",
+        "type": "ui_toast",
+        "z": "44cb8fdafae3021b",
+        "position": "top right",
+        "displayTime": "8",
+        "highlight": "red",
+        "sendall": true,
+        "outputs": 0,
+        "ok": "OK",
+        "cancel": "",
+        "raw": false,
+        "className": "",
+        "topic": "ALERTA SÍSMICA",
+        "name": "Notificación Emergencia",
+        "x": 790,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "49b79982a2c7b9b0",
+        "type": "debug",
+        "z": "44cb8fdafae3021b",
+        "name": "Consola Alertas",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 760,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "e2e210cff92228c2",
+        "type": "mqtt in",
+        "z": "44cb8fdafae3021b",
+        "name": "Entrada MQTT Terremotos Fuertes",
+        "topic": "terremotos/+/fuerte",
+        "qos": "2",
+        "datatype": "json",
+        "broker": "6aece1876cbbf929",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 180,
+        "y": 200,
+        "wires": [
+            [
+                "eb9a1fa2fe3a96bd"
+            ]
+        ]
+    },
+    {
+        "id": "447765f7785df1cc",
+        "type": "mqtt in",
+        "z": "44cb8fdafae3021b",
+        "name": "Entrada MQTT Terremotos Africa",
+        "topic": "terremotos/africa/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "344b79d60e0a7afb",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 170,
+        "y": 380,
+        "wires": [
+            [
+                "97716c990fba1361"
+            ]
+        ]
+    },
+    {
+        "id": "c00b3ca17ac8e6e9",
+        "type": "mqtt in",
+        "z": "44cb8fdafae3021b",
+        "name": "Entrada MQTT Terremotos Antarctica",
+        "topic": "terremotos/antarctica/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "b093083e537e2819",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 190,
+        "y": 480,
+        "wires": [
+            [
+                "f12dbcde67e4bb10"
+            ]
+        ]
+    },
+    {
+        "id": "a37245d444150575",
+        "type": "mqtt in",
+        "z": "44cb8fdafae3021b",
+        "name": "Entrada MQTT Terremotos Asia",
+        "topic": "terremotos/asia/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "9b465431292d9f67",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 170,
+        "y": 620,
+        "wires": [
+            [
+                "e6ee0a41023aad9c"
+            ]
+        ]
+    },
+    {
+        "id": "e6dce8868dca6bd5",
+        "type": "mqtt in",
+        "z": "44cb8fdafae3021b",
+        "name": "Entrada MQTT Terremotos Europe",
+        "topic": "terremotos/europe/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "153ebebfa72546be",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 180,
+        "y": 720,
+        "wires": [
+            [
+                "6f2f98d51c11a8fe"
+            ]
+        ]
+    },
+    {
+        "id": "f9817a044b860c34",
+        "type": "mqtt in",
+        "z": "44cb8fdafae3021b",
+        "name": "Entrada MQTT Terremotos North America",
+        "topic": "terremotos/noamerica/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "6aaa70cac1fb9b73",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 200,
+        "y": 820,
+        "wires": [
+            [
+                "b317e484589a360a"
+            ]
+        ]
+    },
+    {
+        "id": "8b2b246cd1e09ac3",
+        "type": "mqtt in",
+        "z": "44cb8fdafae3021b",
+        "name": "Entrada MQTT Terremotos Oceania",
+        "topic": "terremotos/oceania/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "11230f5804e54c12",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 180,
+        "y": 920,
+        "wires": [
+            [
+                "be67dfb4302b4cf9"
+            ]
+        ]
+    },
+    {
+        "id": "bc240ae8fc570f54",
+        "type": "mqtt in",
+        "z": "44cb8fdafae3021b",
+        "name": "Entrada MQTT Terremotos South America",
+        "topic": "terremotos/saamerica/#",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "73a9c15129816a6f",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 200,
+        "y": 1040,
+        "wires": [
+            [
+                "d77a9e65f888fe28"
+            ]
+        ]
+    },
+    {
+        "id": "b317e484589a360a",
+        "type": "subflow:01dd48a4ed26ad4c",
+        "z": "44cb8fdafae3021b",
+        "name": "Panel Continente North America",
+        "x": 510,
+        "y": 820,
+        "wires": [
+            [
+                "09772fd9e83a7d4b"
+            ],
+            [
+                "09ac4df14135901a"
+            ],
+            [
+                "d6da65b9624a3a68"
+            ]
+        ]
+    },
+    {
+        "id": "f12dbcde67e4bb10",
+        "type": "subflow:01dd48a4ed26ad4c",
+        "z": "44cb8fdafae3021b",
+        "name": "Panel Continente Antartica",
+        "x": 500,
+        "y": 480,
+        "wires": [
+            [
+                "9c9bb911de89df1c"
+            ],
+            [
+                "8ea7f4b8b4e41a07"
+            ],
+            [
+                "45e8a63e1665cfe0"
+            ]
+        ]
+    },
+    {
+        "id": "e6ee0a41023aad9c",
+        "type": "subflow:01dd48a4ed26ad4c",
+        "z": "44cb8fdafae3021b",
+        "name": "Panel Continente Asia",
+        "x": 480,
+        "y": 620,
+        "wires": [
+            [
+                "6f0991f7c0e012e9"
+            ],
+            [
+                "ca97f2f205edfe9f"
+            ],
+            [
+                "3b81a96ba3710d2d"
+            ]
+        ]
+    },
+    {
+        "id": "97716c990fba1361",
+        "type": "subflow:01dd48a4ed26ad4c",
+        "z": "44cb8fdafae3021b",
+        "name": "Panel Continente Africa",
+        "x": 490,
+        "y": 380,
+        "wires": [
+            [
+                "272adc4a5a8c5548"
+            ],
+            [
+                "42672de9a9379e1c"
+            ],
+            [
+                "6033f10e83685e38"
+            ]
+        ]
+    },
+    {
+        "id": "6f2f98d51c11a8fe",
+        "type": "subflow:01dd48a4ed26ad4c",
+        "z": "44cb8fdafae3021b",
+        "name": "Panel Continente Europe",
+        "x": 490,
+        "y": 720,
+        "wires": [
+            [
+                "e55c1e45247d5ba2"
+            ],
+            [
+                "f7b474d4a0efac88"
+            ],
+            [
+                "ca53407e85ed918b"
+            ]
+        ]
+    },
+    {
+        "id": "be67dfb4302b4cf9",
+        "type": "subflow:01dd48a4ed26ad4c",
+        "z": "44cb8fdafae3021b",
+        "name": "Panel Continente Oceania",
+        "x": 490,
+        "y": 920,
+        "wires": [
+            [
+                "e9e633520383e166"
+            ],
+            [
+                "36ab355a465d4c1e"
+            ],
+            [
+                "789807f0a51a919f"
+            ]
+        ]
+    },
+    {
+        "id": "d77a9e65f888fe28",
+        "type": "subflow:01dd48a4ed26ad4c",
+        "z": "44cb8fdafae3021b",
+        "name": "Panel Continente South America",
+        "x": 510,
+        "y": 1040,
+        "wires": [
+            [
+                "09f4e40b6295c06c"
+            ],
+            [
+                "73f18c3549c3febb"
+            ],
+            [
+                "775968c616087505"
+            ]
+        ]
+    },
+    {
+        "id": "6033f10e83685e38",
+        "type": "ui_gauge",
+        "z": "44cb8fdafae3021b",
+        "name": "Magnitud Gauge Africa",
+        "group": "2011a2df0cbddb1e",
+        "order": 1,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Magnitud",
+        "label": "M",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 10,
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca0000"
+        ],
+        "seg1": "3.0",
+        "seg2": "5.0",
+        "diff": false,
+        "className": "",
+        "x": 800,
+        "y": 420,
+        "wires": []
+    },
+    {
+        "id": "42672de9a9379e1c",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "2011a2df0cbddb1e",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "Tiempo Texto Africa",
+        "label": "Time:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 790,
+        "y": 380,
+        "wires": []
+    },
+    {
+        "id": "272adc4a5a8c5548",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "2011a2df0cbddb1e",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "Lugar Texto Africa",
+        "label": "Lugar:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 790,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "45e8a63e1665cfe0",
+        "type": "ui_gauge",
+        "z": "44cb8fdafae3021b",
+        "name": "Magnitud Gauge Antartica",
+        "group": "51efc9735de7393f",
+        "order": 1,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Magnitud",
+        "label": "M",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 10,
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca0000"
+        ],
+        "seg1": "3.0",
+        "seg2": "5.0",
+        "diff": false,
+        "className": "",
+        "x": 990,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "8ea7f4b8b4e41a07",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "51efc9735de7393f",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "Tiempo Texto Antartica",
+        "label": "Time:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 980,
+        "y": 480,
+        "wires": []
+    },
+    {
+        "id": "9c9bb911de89df1c",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "51efc9735de7393f",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "Lugar Texto Antartica",
+        "label": "Lugar:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 980,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "3b81a96ba3710d2d",
+        "type": "ui_gauge",
+        "z": "44cb8fdafae3021b",
+        "name": "Magnitud Gauge Asia",
+        "group": "ba9de5a222068656",
+        "order": 1,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Magnitud",
+        "label": "M",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 10,
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca0000"
+        ],
+        "seg1": "3.0",
+        "seg2": "5.0",
+        "diff": false,
+        "className": "",
+        "x": 800,
+        "y": 640,
+        "wires": []
+    },
+    {
+        "id": "ca97f2f205edfe9f",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "ba9de5a222068656",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "Tiempo Texto Asia",
+        "label": "Time:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 790,
+        "y": 600,
+        "wires": []
+    },
+    {
+        "id": "6f0991f7c0e012e9",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "ba9de5a222068656",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "Lugar Texto Asia",
+        "label": "Lugar:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 790,
+        "y": 560,
+        "wires": []
+    },
+    {
+        "id": "ca53407e85ed918b",
+        "type": "ui_gauge",
+        "z": "44cb8fdafae3021b",
+        "name": "Magnitud Gauge Europe",
+        "group": "2b9b45e2f6d6f3b1",
+        "order": 1,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Magnitud",
+        "label": "M",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 10,
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca0000"
+        ],
+        "seg1": "3.0",
+        "seg2": "5.0",
+        "diff": false,
+        "className": "",
+        "x": 990,
+        "y": 740,
+        "wires": []
+    },
+    {
+        "id": "f7b474d4a0efac88",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "2b9b45e2f6d6f3b1",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "Tiempo Texto Europe",
+        "label": "Time:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 980,
+        "y": 700,
+        "wires": []
+    },
+    {
+        "id": "e55c1e45247d5ba2",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "2b9b45e2f6d6f3b1",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "Lugar Texto Europe",
+        "label": "Lugar:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 970,
+        "y": 660,
+        "wires": []
+    },
+    {
+        "id": "d6da65b9624a3a68",
+        "type": "ui_gauge",
+        "z": "44cb8fdafae3021b",
+        "name": "Magnitud Gauge North America",
+        "group": "5caeb7e792fab459",
+        "order": 1,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Magnitud",
+        "label": "M",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 10,
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca0000"
+        ],
+        "seg1": "3.0",
+        "seg2": "5.0",
+        "diff": false,
+        "className": "",
+        "x": 850,
+        "y": 860,
+        "wires": []
+    },
+    {
+        "id": "09ac4df14135901a",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "5caeb7e792fab459",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "Tiempo Texto North America",
+        "label": "Time:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 840,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "09772fd9e83a7d4b",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "5caeb7e792fab459",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "Lugar Texto North America",
+        "label": "Lugar:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 840,
+        "y": 780,
+        "wires": []
+    },
+    {
+        "id": "789807f0a51a919f",
+        "type": "ui_gauge",
+        "z": "44cb8fdafae3021b",
+        "name": "Magnitud Gauge Oceania",
+        "group": "6dcc07da863a67be",
+        "order": 1,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Magnitud",
+        "label": "M",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 10,
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca0000"
+        ],
+        "seg1": "3.0",
+        "seg2": "5.0",
+        "diff": false,
+        "className": "",
+        "x": 1010,
+        "y": 960,
+        "wires": []
+    },
+    {
+        "id": "36ab355a465d4c1e",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "6dcc07da863a67be",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "Tiempo Texto Oceania",
+        "label": "Time:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 1000,
+        "y": 920,
+        "wires": []
+    },
+    {
+        "id": "e9e633520383e166",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "6dcc07da863a67be",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "Lugar Texto Oceania",
+        "label": "Lugar:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 1000,
+        "y": 880,
+        "wires": []
+    },
+    {
+        "id": "775968c616087505",
+        "type": "ui_gauge",
+        "z": "44cb8fdafae3021b",
+        "name": "Magnitud Gauge South America",
+        "group": "1660d7f50b49b361",
+        "order": 1,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Magnitud",
+        "label": "M",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 10,
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca0000"
+        ],
+        "seg1": "3.0",
+        "seg2": "5.0",
+        "diff": false,
+        "className": "",
+        "x": 850,
+        "y": 1080,
+        "wires": []
+    },
+    {
+        "id": "73f18c3549c3febb",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "1660d7f50b49b361",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "Tiempo Texto South America",
+        "label": "Time:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 840,
+        "y": 1040,
+        "wires": []
+    },
+    {
+        "id": "09f4e40b6295c06c",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "1660d7f50b49b361",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "Lugar Texto South America",
+        "label": "Lugar:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 840,
+        "y": 1000,
+        "wires": []
+    },
+    {
+        "id": "85dc88da3b46fa75",
+        "type": "ui_worldmap",
+        "z": "44cb8fdafae3021b",
+        "group": "dashboard_group_1",
+        "order": 9,
+        "width": 0,
+        "height": 0,
+        "name": "Mapa General",
+        "lat": "",
+        "lon": "",
+        "zoom": "",
+        "layer": "EsriS",
+        "cluster": "",
+        "maxage": "",
+        "usermenu": "hide",
+        "layers": "hide",
+        "panit": "false",
+        "panlock": "false",
+        "zoomlock": "false",
+        "hiderightclick": "true",
+        "coords": "none",
+        "showgrid": "false",
+        "showruler": "false",
+        "allowFileDrop": "false",
+        "path": "/worldmap",
+        "overlist": "DR,CO,RA,DN,HM",
+        "maplist": "OSMG,OSMC,EsriC,EsriS,EsriT,EsriDG,UKOS",
+        "mapname": "",
+        "mapurl": "",
+        "mapopt": "",
+        "mapwms": false,
+        "x": 820,
+        "y": 140,
+        "wires": []
+    },
+    {
+        "id": "533e6de43fe9a823",
+        "type": "ui_gauge",
+        "z": "44cb8fdafae3021b",
+        "name": "Magnitud Mas Fuerte",
+        "group": "dashboard_group_1",
+        "order": 1,
+        "width": 8,
+        "height": 4,
+        "gtype": "gage",
+        "title": "Magnitud más alta (últimos 200)",
+        "label": "M",
+        "format": "{{value}}",
+        "min": 0,
+        "max": 10,
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca0000"
+        ],
+        "seg1": "3.0",
+        "seg2": "5.0",
+        "diff": false,
+        "className": "",
+        "x": 840,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "f16b04be2a5c1bd8",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "dashboard_group_1",
+        "order": 2,
+        "width": 8,
+        "height": 1,
+        "name": "Lugar Texto Mas Fuerte",
+        "label": "Lugar:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 850,
+        "y": 20,
+        "wires": []
+    },
+    {
+        "id": "a05ca793358df66a",
+        "type": "ui_text",
+        "z": "44cb8fdafae3021b",
+        "group": "dashboard_group_1",
+        "order": 4,
+        "width": 8,
+        "height": 1,
+        "name": "Tiempo Texto Mas Fuerte",
+        "label": "Timestamp:",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": 16,
+        "color": "#000000",
+        "x": 850,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "3837ce9ee0162f4a",
+        "type": "inject",
+        "z": "44cb8fdafae3021b",
+        "name": "Startup configuration",
+        "props": [],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "0",
+        "topic": "",
+        "x": 180,
+        "y": 1160,
+        "wires": [
+            [
+                "5d87bbf261412613"
+            ]
+        ]
+    },
+    {
+        "id": "5d87bbf261412613",
+        "type": "function",
+        "z": "44cb8fdafae3021b",
+        "name": "Empty Markers",
+        "func": "flow.set(\"markers\", []);\nreturn null;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 1160,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c152c3954f8c17a8",
+        "type": "ui_table",
+        "z": "44cb8fdafae3021b",
+        "group": "dashboard_group_1",
+        "name": "Tabla terremotos",
+        "order": 6,
+        "width": 8,
+        "height": 2,
+        "columns": [],
+        "outputs": 0,
+        "cts": false,
+        "x": 1050,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "93010456cd815d14",
+        "type": "ui_spacer",
+        "z": "44cb8fdafae3021b",
+        "name": "spacer",
+        "group": "dashboard_group_1",
+        "order": 3,
+        "width": 1,
+        "height": 1
+    },
+    {
+        "id": "44e89419eca11170",
+        "type": "ui_spacer",
+        "z": "44cb8fdafae3021b",
+        "name": "spacer",
+        "group": "dashboard_group_1",
+        "order": 5,
+        "width": 1,
+        "height": 1
+    },
+    {
+        "id": "a93bdbab452e6cd3",
+        "type": "ui_spacer",
+        "z": "44cb8fdafae3021b",
+        "name": "spacer",
+        "group": "dashboard_group_1",
+        "order": 7,
+        "width": 1,
+        "height": 1
+    },
+    {
+        "id": "6e3fb617db13bc2a",
+        "type": "ui_spacer",
+        "z": "44cb8fdafae3021b",
+        "name": "spacer",
+        "group": "dashboard_group_1",
+        "order": 8,
+        "width": 1,
+        "height": 1
+    },
+    {
+        "id": "broker_mosquitto_local",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered_monitor",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": false,
+        "birthTopic": "estado/subscriber",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "estado/subscriber",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "estado/subscriber",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "6aece1876cbbf929",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local Fuerte",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered_monitor_fuerte",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": false,
+        "birthTopic": "estado/subscriber",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "estado/subscriber",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "estado/subscriber",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "344b79d60e0a7afb",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local af",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered_monitor_af",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": false,
+        "birthTopic": "estado/subscriber",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "estado/subscriber",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "estado/subscriber",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "b093083e537e2819",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local at",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered_monitor_at",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": false,
+        "birthTopic": "estado/subscriber",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "estado/subscriber",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "estado/subscriber",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "9b465431292d9f67",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local as",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered_monitor_as",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": false,
+        "birthTopic": "estado/subscriber",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "estado/subscriber",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "estado/subscriber",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "153ebebfa72546be",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local eu",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered_monitor_eu",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": false,
+        "birthTopic": "estado/subscriber",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "estado/subscriber",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "estado/subscriber",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "6aaa70cac1fb9b73",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local na",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered_monitor_na",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": false,
+        "birthTopic": "estado/subscriber",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "estado/subscriber",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "estado/subscriber",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "11230f5804e54c12",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local oc",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered_monitor_oc",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": false,
+        "birthTopic": "estado/subscriber",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "estado/subscriber",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "estado/subscriber",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "73a9c15129816a6f",
+        "type": "mqtt-broker",
+        "name": "Mosquitto Local sa",
+        "broker": "localhost",
+        "port": "1883",
+        "clientid": "nodered_monitor_sa",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": false,
+        "autoUnsubscribe": false,
+        "birthTopic": "estado/subscriber",
+        "birthQos": "1",
+        "birthRetain": "true",
+        "birthPayload": "online",
+        "birthMsg": {},
+        "closeTopic": "estado/subscriber",
+        "closeQos": "1",
+        "closeRetain": "true",
+        "closePayload": "offline",
+        "closeMsg": {},
+        "willTopic": "estado/subscriber",
+        "willQos": "1",
+        "willRetain": "true",
+        "willPayload": "offline",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "2011a2df0cbddb1e",
+        "type": "ui_group",
+        "name": "PanelAfrica",
+        "tab": "dashboard_tab_1",
+        "order": 1,
+        "disp": true,
+        "width": "4",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "51efc9735de7393f",
+        "type": "ui_group",
+        "name": "PanelAntartica",
+        "tab": "dashboard_tab_1",
+        "order": 3,
+        "disp": true,
+        "width": "4",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "ba9de5a222068656",
+        "type": "ui_group",
+        "name": "PanelAsia",
+        "tab": "dashboard_tab_1",
+        "order": 4,
+        "disp": true,
+        "width": "4",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "2b9b45e2f6d6f3b1",
+        "type": "ui_group",
+        "name": "PanelEuropa",
+        "tab": "dashboard_tab_1",
+        "order": 5,
+        "disp": true,
+        "width": "4",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "5caeb7e792fab459",
+        "type": "ui_group",
+        "name": "PanelAmericaNorte",
+        "tab": "dashboard_tab_1",
+        "order": 6,
+        "disp": true,
+        "width": "4",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "6dcc07da863a67be",
+        "type": "ui_group",
+        "name": "PanelOceania",
+        "tab": "dashboard_tab_1",
+        "order": 7,
+        "disp": true,
+        "width": "4",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "1660d7f50b49b361",
+        "type": "ui_group",
+        "name": "PanelAmericaSur",
+        "tab": "dashboard_tab_1",
+        "order": 8,
+        "disp": true,
+        "width": "4",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "dashboard_group_1",
+        "type": "ui_group",
+        "name": "General",
+        "tab": "dashboard_tab_1",
+        "order": 1,
+        "disp": true,
+        "width": 17,
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "dashboard_tab_1",
+        "type": "ui_tab",
+        "name": "Panel Terremotos USGS",
+        "icon": "dashboard",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "ac3e298a8e0dbe9c",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-dashboard": "3.6.6",
+            "node-red-contrib-web-worldmap": "5.8.1",
+            "node-red-node-ui-table": "0.4.5"
+        }
+    }
+]
